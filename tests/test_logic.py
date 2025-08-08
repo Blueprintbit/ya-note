@@ -60,7 +60,7 @@ class TestNoteCreation(TestCase):
         # Считаем количество записей.
         notes_count = Note.objects.count()
         # Убеждаемся, что есть одна запись.
-        self.assertEqual(notes_count, notes_count_before+1)
+        self.assertEqual(notes_count, notes_count_before +1)
         # Получаем объект записи из базы.
         # Проверка атрибутов
         note = Note.objects.get(slug='test-note')
@@ -69,7 +69,6 @@ class TestNoteCreation(TestCase):
         self.assertEqual(note.text, self.form_data['text'])
 
 
-@skip("Временно отключен для самотестирования")
 class TestNoteEditDelete(TestCase):
     # Тексты для комментариев не нужно дополнительно создавать
     # (в отличие от объектов в БД), им не нужны ссылки на self или cls,
@@ -84,77 +83,69 @@ class TestNoteEditDelete(TestCase):
         # Создаём запись в БД.
         cls.notes = Note.objects.create(
             title='Заголовок',
-            text='Текст',
+            text=cls.NOTE_TEXT,
             author=cls.author,
             slug='test-slug',
         )
         # Формируем адрес блока с записями, который понадобится для тестов.
-        cls.notes_url = reverse('notes:detail', args=(cls.notes.slug,))  # Адрес новости.
-        # Создаём пользователя - автора комментария.
-        cls.author = User.objects.create(username='Автор комментария')
+        cls.notes_success_url = reverse('notes:success')  # Адрес успеха.
+        cls.notes_list_url = reverse('notes:list')  # Адрес списка записей.
         # Создаём клиент для пользователя-автора.
         cls.author_client = Client()
         # "Логиним" пользователя в клиенте.
         cls.author_client.force_login(cls.author)
         # Делаем всё то же самое для пользователя-читателя.
-        cls.reader = User.objects.create(username='Читатель')
         cls.reader_client = Client()
         cls.reader_client.force_login(cls.reader)
-        # Создаём объект комментария.
-        cls.note = Note.objects.create(
-            title='Заголовок',
-            text='Текст',
-            author=cls.author,
-            slug='test-slug',
-        )
-        # URL для редактирования комментария.
-        cls.edit_url = reverse('notes:edit', args=(cls.notes.slug,)) 
-        # URL для удаления комментария.
-        cls.delete_url = reverse('notes:delete', args=(cls.notes.slug,))  
+
+        # URL для редактирования записи.
+        cls.edit_url = reverse('notes:edit', args=(cls.notes.slug,))
+        # URL для удаления записи.
+        cls.delete_url = reverse('notes:delete', args=(cls.notes.slug,))
         # Формируем данные для POST-запроса по обновлению комментария.
-        cls.form_data = {'text': cls.NEW_NOTE_TEXT}
+        cls.form_data = {
+            'title': cls.notes.title,
+            'text': cls.NEW_NOTE_TEXT,
+            'slug': cls.notes.slug
+        }
 
-
-
-
-    @skip("Временно отключен для самотестирования")
-    def test_author_can_delete_comment(self):
-        # От имени автора комментария отправляем DELETE-запрос на удаление.
+    def test_author_can_delete_note(self):
+        # От имени автора записи отправляем DELETE-запрос на удаление.
         response = self.author_client.delete(self.delete_url)
-        # Проверяем, что редирект привёл к разделу с комментариями.
-        self.assertRedirects(response, self.url_to_comments)
+        # Проверяем, что редирект привёл к успеху.
+        self.assertRedirects(response, self.notes_success_url)
         # Заодно проверим статус-коды ответов.
         self.assertEqual(response.status_code, HTTPStatus.FOUND)
-        # Считаем количество комментариев в системе.
-        comments_count = Comment.objects.count()
+        # Считаем количество записей в системе.
+        comments_count = Note.objects.count()
         # Ожидаем ноль комментариев в системе.
         self.assertEqual(comments_count, 0)
-    @skip("Временно отключен для самотестирования")
-    def test_user_cant_delete_comment_of_another_user(self):
+
+    def test_user_cant_delete_note_of_another_user(self):
         # Выполняем запрос на удаление от пользователя-читателя.
         response = self.reader_client.delete(self.delete_url)
         # Проверяем, что вернулась 404 ошибка.
         self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
         # Убедимся, что комментарий по-прежнему на месте.
-        comments_count = Comment.objects.count()
+        comments_count = Note.objects.count()
         self.assertEqual(comments_count, 1)
-    @skip("Временно отключен для самотестирования")
-    def test_author_can_edit_comment(self):
-        # Выполняем запрос на редактирование от имени автора комментария.
+
+    def test_author_can_edit_note(self):
+        # Выполняем запрос на редактирование от имени автора записи.
         response = self.author_client.post(self.edit_url, data=self.form_data)
         # Проверяем, что сработал редирект.
-        self.assertRedirects(response, self.url_to_comments)
-        # Обновляем объект комментария.
-        self.comment.refresh_from_db()
-        # Проверяем, что текст комментария соответствует обновленному.
-        self.assertEqual(self.comment.text, self.NEW_COMMENT_TEXT)
-    @skip("Временно отключен для самотестирования")
-    def test_user_cant_edit_comment_of_another_user(self):
+        self.assertRedirects(response, self.notes_success_url)
+        # Обновляем объект записи.
+        self.notes.refresh_from_db()
+        # Проверяем, что текст записи соответствует обновленному.
+        self.assertEqual(self.notes.text, self.NEW_NOTE_TEXT)
+
+    def test_user_cant_edit_note_of_another_user(self):
         # Выполняем запрос на редактирование от имени другого пользователя.
         response = self.reader_client.post(self.edit_url, data=self.form_data)
         # Проверяем, что вернулась 404 ошибка.
         self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
-        # Обновляем объект комментария.
-        self.comment.refresh_from_db()
+        # Обновляем объект записи.
+        self.notes.refresh_from_db()
         # Проверяем, что текст остался тем же, что и был.
-        self.assertEqual(self.comment.text, self.COMMENT_TEXT)
+        self.assertEqual(self.notes.text, self.NOTE_TEXT)
